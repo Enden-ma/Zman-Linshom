@@ -202,17 +202,16 @@
     </div>
     <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.15); color: #FFF; width: 100%; max-width: 350px; margin-top: 40px; box-shadow: none;">Stop</button>
 
-    <div class="version-tag">v4.2</div>
+    <div class="version-tag">v4.3</div>
 
     <script>
-        // Diagnostic net: if the script crashes, it prints the error in the sequence box
         window.onerror = function(msg) {
             const seq = document.getElementById('sequence');
             if(seq) seq.value = "ERR: " + msg;
         };
 
-        // Ultra-fast wave generator (chunked to prevent browser freezes)
-        function buildWavDataURI(freq, duration = 0.085, vol = 0.87, decay = 92.1) {
+        // Advanced wave generator with variable attack mapping
+        function buildWavDataURI(freq, duration = 0.085, vol = 0.87, decay = 92.1, attack = 0.01) {
             const sampleRate = 44100;
             const samples = Math.floor(sampleRate * duration);
             const buffer = new ArrayBuffer(44 + samples * 2);
@@ -242,22 +241,21 @@
                 let env = 0;
                 let timeInWave = 0;
                 
-                // 15ms zero-phase silence padding to eliminate the hardware "crunch"
                 if (t < 0.015) {
                     env = 0; 
                     timeInWave = 0;
-                } else if (t <= 0.025) {
-                    env = (t - 0.015) / 0.01; 
+                } else if (t <= 0.015 + attack) {
+                    env = (t - 0.015) / attack; 
                     timeInWave = t - 0.015; 
-                } else if (t <= duration - 0.01) {
-                    env = Math.exp(-decay * (t - 0.025)); 
+                } else if (t <= duration - 0.015) {
+                    env = Math.exp(-decay * (t - (0.015 + attack))); 
                     timeInWave = t - 0.015;
                 } else {
                     env = 0;
                     timeInWave = 0;
                 }
 
-                const sine = Math.sin(2 * Math.PI * freq * timeInWave);
+                const sine = freq === 0 ? 0 : Math.sin(2 * Math.PI * freq * timeInWave);
                 const sample = Math.max(-1, Math.min(1, sine)) * 32767 * env * vol; 
                 view.setInt16(offset, sample, true);
                 offset += 2;
@@ -265,18 +263,20 @@
 
             let binary = '';
             const bytes = new Uint8Array(buffer);
-            const chunkSize = 8192; // Process in massive chunks, drastically reducing CPU load
+            const chunkSize = 8192; 
             for (let i = 0; i < bytes.length; i += chunkSize) {
                 binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
             }
             return 'data:audio/wav;base64,' + btoa(binary);
         }
 
-        // Pre-instantiated Audio to bypass iOS strict autoplay rules
-        const audioStep = new Audio(buildWavDataURI(396, 0.085, 0.87, 92.1));    
-        const audioRestart = new Audio(buildWavDataURI(432, 0.085, 0.87, 92.1)); 
-        const audioDone = new Audio(buildWavDataURI(285, 0.085, 0.87, 92.1));    
-        const audioHeadstart = new Audio(buildWavDataURI(396, 0.30, 0.30, 15)); 
+        // Pre-build files to clear call-stack
+        const audioStep = new Audio(buildWavDataURI(396, 0.085, 0.87, 92.1, 0.01));    
+        const audioRestart = new Audio(buildWavDataURI(432, 0.085, 0.87, 92.1, 0.01)); 
+        const audioDone = new Audio(buildWavDataURI(285, 0.085, 0.87, 92.1, 0.01));    
+        
+        // Deep 174Hz Headstart: 0.5s duration, 0.20 volume, 8 decay (smooth), 0.15s soft attack
+        const audioHeadstart = new Audio(buildWavDataURI(174, 0.50, 0.20, 8, 0.15)); 
 
         function playBeep(type) {
             let snd = audioStep;
@@ -433,7 +433,6 @@
         }
 
         startBtn.addEventListener('click', () => {
-            // Invisible security blanket: silently primes iOS audio engines
             if (!audioUnlocked) {
                 [audioStep, audioRestart, audioDone, audioHeadstart].forEach(a => {
                     a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(()=>{});
@@ -470,7 +469,6 @@
             document.body.style.backgroundColor = COLOR_BLUE;
             stopBtn.innerText = "Stop"; 
 
-            // 70ms hardware wake delay
             setTimeout(async () => {
                 if (isHeadstartOn) {
                     for (let i = 3; i > 0; i--) {
