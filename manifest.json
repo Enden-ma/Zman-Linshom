@@ -1,0 +1,15 @@
+{
+  "name": "Breathing Protocol",
+  "short_name": "Protocol",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#81D4FA",
+  "theme_color": "#81D4FA",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
