@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Zman Linshom</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#81D4FA">
-<link rel="apple-touch-icon" href="icon.png">
+    <title>Breathing Protocol</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#81D4FA">
+    <link rel="apple-touch-icon" href="icon.png">
+
     <style>
         body {
-            background-color: #81D4FA; /* Starts Light Blue */
-            color: #F5F5F5; /* Soft light-grey white */
+            background-color: #81D4FA; 
+            color: #F5F5F5; 
             font-family: sans-serif;
             display: flex;
             flex-direction: column;
@@ -20,7 +22,7 @@
             margin: 0;
             padding: 20px;
             box-sizing: border-box;
-            transition: background-color 0.8s ease; /* Smooth fade between colors */
+            transition: background-color 0.8s ease; 
         }
         .controls {
             display: flex;
@@ -29,6 +31,29 @@
             width: 100%;
             max-width: 350px;
             margin-bottom: 40px;
+        }
+        .presets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 5px;
+        }
+        .preset-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #F5F5F5;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: normal;
+            margin: 0;
+            cursor: pointer;
+            box-shadow: none;
+            transition: background 0.2s;
+        }
+        .preset-btn:active {
+            background: rgba(255, 255, 255, 0.4);
         }
         .input-group {
             display: flex;
@@ -51,19 +76,15 @@
             text-align: center;
             width: 100%;
             box-sizing: border-box;
-            text-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         input:focus {
             outline: none;
             border-color: #F5F5F5;
             background: rgba(255, 255, 255, 0.3);
         }
-        input::placeholder {
-            color: rgba(255, 255, 255, 0.6);
-        }
-        button {
+        button.main-btn {
             background-color: #F5F5F5;
-            color: #424242; /* Darker text so the button is readable */
+            color: #424242; 
             border: none;
             padding: 20px;
             border-radius: 12px;
@@ -87,10 +108,10 @@
             stroke-linecap: round;
         }
         .bg-ring {
-            stroke: rgba(255, 255, 255, 0.3); /* Translucent white track */
+            stroke: rgba(255, 255, 255, 0.3);
         }
         .progress-ring {
-            stroke: #F5F5F5; /* Solid soft white progress */
+            stroke: #F5F5F5; 
             stroke-dasharray: 722.56;
             stroke-dashoffset: 0;
         }
@@ -109,15 +130,24 @@
 <body>
 
     <div class="controls" id="controls">
+        
+        <div class="presets">
+            <button class="preset-btn" data-seq="6-6">King</button>
+            <button class="preset-btn" data-seq="4-4-4-4">Box</button>
+            <button class="preset-btn" data-seq="4-4-8-4">Soothe</button>
+            <button class="preset-btn" data-seq="2-2">New Universe</button>
+            <button class="preset-btn" data-seq="1-1">Acid</button>
+        </div>
+
         <div class="input-group">
-            <label>Sequence (e.g. 6-6, 4-4-8-4):</label>
-            <input type="text" id="sequence" value="5-5-6-5" inputmode="text">
+            <label>Sequence (sec):</label>
+            <input type="text" id="sequence" value="6-6" inputmode="text">
         </div>
         <div class="input-group">
             <label>Total Minutes (optional):</label>
             <input type="number" id="totalTime" placeholder="Endless" inputmode="numeric">
         </div>
-        <button id="startBtn">Start Timer</button>
+        <button id="startBtn" class="main-btn">Start Timer</button>
     </div>
 
     <div class="ring-container" id="timerVisual" style="display: none;">
@@ -127,13 +157,11 @@
         </svg>
         <div class="time-display" id="display">1</div>
     </div>
-    <button id="stopBtn" style="display: none; background-color: rgba(255,255,255,0.2); color: #F5F5F5; width: 100%; max-width: 350px; margin-top: 40px; box-shadow: none;">Stop Timer</button>
+    <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.2); color: #F5F5F5; width: 100%; max-width: 350px; margin-top: 40px;">Stop Timer</button>
 
     <script>
         const STEP_FREQ = 400;     
         const RESTART_FREQ = 600;  
-        
-        // Colors for the breathing fade effect
         const COLOR_BLUE = '#81D4FA';
         const COLOR_GREEN = '#A8E6CF';
 
@@ -155,7 +183,16 @@
         const stopBtn = document.getElementById('stopBtn');
         const controls = document.getElementById('controls');
         const timerVisual = document.getElementById('timerVisual');
+        const sequenceInput = document.getElementById('sequence');
+        const presetBtns = document.querySelectorAll('.preset-btn');
         const circumference = 2 * Math.PI * 115;
+
+        // Preset Button Logic
+        presetBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                sequenceInput.value = btn.getAttribute('data-seq');
+            });
+        });
 
         async function requestWakeLock() {
             try {
@@ -179,7 +216,6 @@
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
-            
             if (!silentOsc) {
                 silentOsc = audioCtx.createOscillator();
                 const silentGain = audioCtx.createGain();
@@ -193,37 +229,28 @@
 
         function playClick(isCycleRestart) {
             if (!audioCtx) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-
             const osc = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
-            
             osc.frequency.value = isCycleRestart ? RESTART_FREQ : STEP_FREQ; 
             osc.type = 'sine';
-
             const now = audioCtx.currentTime;
-            
             gainNode.gain.setValueAtTime(0, now);
             gainNode.gain.linearRampToValueAtTime(0.5, now + 0.005); 
             gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
             gainNode.gain.setValueAtTime(0, now + 0.06);
-
             osc.connect(gainNode);
             gainNode.connect(audioCtx.destination);
-            
             osc.start(now);
             osc.stop(now + 0.1);
         }
 
         function runEngine() {
             if (!isRunning) return;
-
             const now = Date.now();
 
             if (useSessionEnd && now >= sessionEndTime) {
                 stopTimer();
                 display.innerText = "Done";
-                ring.style.strokeDashoffset = 0;
                 return;
             }
 
@@ -232,24 +259,15 @@
 
             if (timeLeft <= 0) {
                 currentIndex = (currentIndex + 1) % sequence.length;
-                const isCycleRestart = (currentIndex === 0);
-                
-                playClick(isCycleRestart);
-                
-                // Toggle background color between Blue and Green on every step
+                playClick(currentIndex === 0);
                 isBlueBackground = !isBlueBackground;
                 document.body.style.backgroundColor = isBlueBackground ? COLOR_BLUE : COLOR_GREEN;
-                
                 stepEndTime += (sequence[currentIndex] * 1000);
                 timeLeft = stepEndTime - now;
             }
 
             let currentBeat = Math.ceil(timeLeft / 1000);
-            
-            if (currentBeat < 1) {
-                currentBeat = 1;
-            }
-
+            if (currentBeat < 1) currentBeat = 1;
             display.innerText = currentBeat;
             
             const safeTimeLeft = Math.max(0, timeLeft);
@@ -261,27 +279,21 @@
             isRunning = false;
             clearInterval(engineInterval);
             releaseWakeLock();
-            
             if (silentOsc) {
                 silentOsc.stop();
                 silentOsc = null;
             }
-            
-            // Reset UI
             timerVisual.style.display = 'none';
             stopBtn.style.display = 'none';
             controls.style.display = 'flex';
             document.body.style.backgroundColor = COLOR_BLUE;
-            isBlueBackground = true;
         }
 
         startBtn.addEventListener('click', () => {
             initAudio();
             requestWakeLock();
-            
             const seqInput = document.getElementById('sequence').value;
             sequence = seqInput.split('-').map(num => parseInt(num.trim())).filter(num => !isNaN(num) && num > 0);
-            
             if (sequence.length === 0) return;
 
             const totalMinutes = document.getElementById('totalTime').value;
@@ -295,15 +307,10 @@
             currentIndex = 0;
             stepEndTime = Date.now() + (sequence[0] * 1000);
             isRunning = true;
-            isBlueBackground = true;
-            document.body.style.backgroundColor = COLOR_BLUE;
-            
             controls.style.display = 'none';
             timerVisual.style.display = 'block';
             stopBtn.style.display = 'block';
-            
             playClick(true);
-            
             engineInterval = setInterval(runEngine, 15);
         });
 
