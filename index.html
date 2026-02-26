@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Zman Linshom</title>
+    <title>Zman Neshima</title>
     
     <meta name="description" content="A gentle timer for breathing.">
-    <meta property="og:title" content="Zman Linshom">
+    <meta property="og:title" content="Zman Neshima">
     <meta property="og:description" content="Organic and gentle cycle timer.">
     <meta property="og:image" content="icon.png">
     
@@ -44,8 +44,6 @@
             justify-content: center;
             margin-bottom: 5px;
         }
-        
-        /* Restored original, superior preset styling */
         .preset-btn {
             background: rgba(255, 255, 255, 0.15);
             border: 1px solid rgba(255, 255, 255, 0.3);
@@ -58,6 +56,7 @@
             cursor: pointer;
             box-shadow: none;
             transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
         .preset-btn:active {
             background: rgba(255, 255, 255, 0.4);
@@ -79,10 +78,8 @@
             opacity: 0.9;
         }
         
-        /* Toggles without the heavy bolding */
         .toggle-label {
             font-size: 13px;
-            text-transform: uppercase;
             letter-spacing: 1px;
             background: rgba(255, 255, 255, 0.15);
             padding: 5px 10px;
@@ -91,6 +88,7 @@
             user-select: none;
             font-weight: normal;
             transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
         .toggle-label.active {
             background: rgba(255, 255, 255, 0.35);
@@ -108,6 +106,7 @@
             width: 100%;
             box-sizing: border-box;
             outline: none;
+            -webkit-appearance: none;
         }
         input::placeholder { color: rgba(255, 255, 255, 0.35); }
 
@@ -123,6 +122,7 @@
             margin-top: 10px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             transition: transform 0.2s, background 0.3s;
+            -webkit-tap-highlight-color: transparent;
         }
         button.main-btn:active { transform: scale(0.98); background: #FFF; }
 
@@ -168,7 +168,7 @@
         <div class="input-group">
             <div class="header-row">
                 <label>Sequence (sec):</label>
-                <div id="headstartToggle" class="toggle-label active">3s Pre-start</div>
+                <div id="headstartToggle" class="toggle-label active">3s headstart</div>
             </div>
             <input type="text" id="sequence" value="6-6" inputmode="text">
         </div>
@@ -176,7 +176,7 @@
         <div class="input-group">
             <div class="header-row">
                 <label>Limit (optional):</label>
-                <div id="limitToggle" class="toggle-label active">Minutes</div>
+                <div id="limitToggle" class="toggle-label active">minutes</div>
             </div>
             <input type="number" id="limitInput" placeholder="Endless" inputmode="numeric">
         </div>
@@ -194,7 +194,6 @@
     <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.15); color: #FFF; width: 100%; max-width: 350px; margin-top: 40px; box-shadow: none;">Stop</button>
 
     <script>
-        // Systemic Audio Engine: 60ms pure sine envelope, max amplitude 0.87
         function buildWavDataURI(freq) {
             const sampleRate = 44100;
             const duration = 0.06; 
@@ -247,10 +246,9 @@
             return 'data:audio/wav;base64,' + btoa(binary);
         }
 
-        // Frequencies set to exact specifications
-        const audioStepURI = buildWavDataURI(396);     // Subsequent steps
-        const audioRestartURI = buildWavDataURI(432);  // First beep of cycle
-        const audioDoneURI = buildWavDataURI(285);     // Finish chime
+        const audioStepURI = buildWavDataURI(396);    
+        const audioRestartURI = buildWavDataURI(432); 
+        const audioDoneURI = buildWavDataURI(285);    
 
         function playBeep(type) {
             let uri = audioStepURI;
@@ -287,7 +285,6 @@
         const timerVisual = document.getElementById('timerVisual');
         const sequenceInput = document.getElementById('sequence');
         
-        // Strict Boolean Logic for Toggles
         let isHeadstartOn = true;
         let isMinutesLimit = true;
         
@@ -295,15 +292,16 @@
         const limitToggle = document.getElementById('limitToggle');
         const circumference = 2 * Math.PI * 115;
 
-        headToggle.onclick = () => {
+        // Upgraded event listeners for mobile tap reliability
+        headToggle.addEventListener('click', () => {
             isHeadstartOn = !isHeadstartOn;
             headToggle.classList.toggle('active', isHeadstartOn);
-        };
+        });
 
-        limitToggle.onclick = () => {
+        limitToggle.addEventListener('click', () => {
             isMinutesLimit = !isMinutesLimit;
-            limitToggle.innerText = isMinutesLimit ? 'Minutes' : 'Cycles';
-        };
+            limitToggle.innerText = isMinutesLimit ? 'minutes' : 'cycles';
+        });
 
         document.querySelectorAll('.preset-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -393,7 +391,7 @@
         }
 
         function stopTimer() {
-            isRunning = false; // This safely kills the headstart loop if pressed early
+            isRunning = false; 
             clearInterval(engineInterval);
             releaseWakeLock();
             timerVisual.style.display = 'none';
@@ -435,15 +433,14 @@
             document.body.style.backgroundColor = COLOR_BLUE;
             stopBtn.innerText = "Stop"; 
 
-            // The 3-second pre-start logic
             if (isHeadstartOn) {
                 for (let i = 3; i > 0; i--) {
-                    if (!isRunning) return; // Safety abort
+                    if (!isRunning) return; 
                     updateDisplay(i); 
                     playBeep('step');
                     await new Promise(r => setTimeout(r, 1000));
                 }
-                if (!isRunning) return; // Final safety abort before engine starts
+                if (!isRunning) return; 
             }
 
             currentIndex = 0;
