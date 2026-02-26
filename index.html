@@ -152,7 +152,6 @@
 <body>
 
     <div class="controls" id="controls">
-        
         <div class="presets">
             <button class="preset-btn" data-seq="6-6">King</button>
             <button class="preset-btn" data-seq="4-4-4-4">Box</button>
@@ -276,14 +275,43 @@
             osc.stop(now + 0.1);
         }
 
+        function playCompletionChime() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            
+            // Mathematically precise scheduling for 3 chimes
+            for (let i = 0; i < 3; i++) {
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                osc.frequency.value = RESTART_FREQ; 
+                osc.type = 'sine';
+                
+                const startTime = now + (i * 0.15); // 150ms apart
+                
+                gainNode.gain.setValueAtTime(0, startTime);
+                gainNode.gain.linearRampToValueAtTime(0.5, startTime + 0.005); 
+                gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + 0.05);
+                gainNode.gain.setValueAtTime(0, startTime + 0.06);
+                
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                osc.start(startTime);
+                osc.stop(startTime + 0.1);
+            }
+        }
+
         function runEngine() {
             if (!isRunning) return;
             const now = Date.now();
 
             if (useSessionEnd && now >= sessionEndTime) {
-                stopTimer();
+                playCompletionChime();
+                isRunning = false;
+                clearInterval(engineInterval);
                 display.innerText = "Done";
                 ring.style.strokeDashoffset = 0;
+                stopBtn.innerText = "Finish";
                 return;
             }
 
@@ -297,9 +325,12 @@
                 if (isCycleRestart) {
                     cyclesCompleted++;
                     if (useCycleLimit && cyclesCompleted >= targetCycles) {
-                        stopTimer();
+                        playCompletionChime();
+                        isRunning = false;
+                        clearInterval(engineInterval);
                         display.innerText = "Done";
                         ring.style.strokeDashoffset = 0;
+                        stopBtn.innerText = "Finish";
                         return;
                     }
                 }
@@ -332,6 +363,7 @@
             stopBtn.style.display = 'none';
             controls.style.display = 'flex';
             document.body.style.backgroundColor = COLOR_BLUE;
+            stopBtn.innerText = "Stop Timer"; // Reset text for the next run
         }
 
         startBtn.addEventListener('click', () => {
@@ -363,6 +395,7 @@
             isRunning = true;
             isBlueBackground = true;
             document.body.style.backgroundColor = COLOR_BLUE;
+            stopBtn.innerText = "Stop Timer"; // Ensure it starts with correct text
             
             controls.style.display = 'none';
             timerVisual.style.display = 'block';
