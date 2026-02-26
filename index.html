@@ -266,7 +266,8 @@
             osc.type = 'sine';
             const now = audioCtx.currentTime;
             gainNode.gain.setValueAtTime(0, now);
-            gainNode.gain.linearRampToValueAtTime(0.5, now + 0.005); 
+            // Increased to absolute maximum gain (1.0) for louder impact
+            gainNode.gain.linearRampToValueAtTime(1.0, now + 0.005); 
             gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
             gainNode.gain.setValueAtTime(0, now + 0.06);
             osc.connect(gainNode);
@@ -288,7 +289,8 @@
                 const startTime = now + (i * 0.333); 
                 
                 gainNode.gain.setValueAtTime(0, startTime);
-                gainNode.gain.linearRampToValueAtTime(0.5, startTime + 0.005); 
+                // Increased to absolute maximum gain (1.0)
+                gainNode.gain.linearRampToValueAtTime(1.0, startTime + 0.005); 
                 gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + 0.05);
                 gainNode.gain.setValueAtTime(0, startTime + 0.06);
                 
@@ -366,6 +368,11 @@
         }
 
         startBtn.addEventListener('click', () => {
+            // The iOS Media Audio Hack
+            // Plays a microscopic silent file to force iOS into "Media Playback" mode
+            const iosMediaHack = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+            iosMediaHack.play().catch(() => {});
+
             initAudio();
             requestWakeLock();
             const seqInput = document.getElementById('sequence').value;
