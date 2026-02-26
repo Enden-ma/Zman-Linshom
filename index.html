@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Breathing Protocol</title>
+    <title>Zman Linshom</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#81D4FA">
@@ -37,7 +37,7 @@
             flex-wrap: wrap;
             gap: 10px;
             justify-content: center;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
         }
         .preset-btn {
             background: rgba(255, 255, 255, 0.15);
@@ -60,11 +60,30 @@
             flex-direction: column;
             gap: 8px;
         }
+        .limit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
         label {
             font-size: 18px;
             font-weight: bold;
             color: #F5F5F5;
             text-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        select {
+            background: rgba(255, 255, 255, 0.2);
+            color: #F5F5F5;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 8px;
+            padding: 5px 10px;
+            font-size: 16px;
+            outline: none;
+            cursor: pointer;
+        }
+        select option {
+            background: #121212; 
+            color: #F5F5F5;
         }
         input {
             background: rgba(255, 255, 255, 0.2);
@@ -76,6 +95,9 @@
             text-align: center;
             width: 100%;
             box-sizing: border-box;
+        }
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.4); 
         }
         input:focus {
             outline: none;
@@ -144,8 +166,14 @@
             <input type="text" id="sequence" value="6-6" inputmode="text">
         </div>
         <div class="input-group">
-            <label>Total Minutes (optional):</label>
-            <input type="number" id="totalTime" placeholder="Endless" inputmode="numeric">
+            <div class="limit-header">
+                <label>Limit (optional):</label>
+                <select id="limitType">
+                    <option value="minutes">Minutes</option>
+                    <option value="cycles">Cycles</option>
+                </select>
+            </div>
+            <input type="number" id="limitInput" placeholder="Endless" inputmode="numeric">
         </div>
         <button id="startBtn" class="main-btn">Start Timer</button>
     </div>
@@ -157,7 +185,7 @@
         </svg>
         <div class="time-display" id="display">1</div>
     </div>
-    <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.2); color: #F5F5F5; width: 100%; max-width: 350px; margin-top: 40px;">Stop Timer</button>
+    <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.2); color: #F5F5F5; width: 100%; max-width: 350px; margin-top: 40px; box-shadow: none;">Stop Timer</button>
 
     <script>
         const STEP_FREQ = 400;     
@@ -172,8 +200,13 @@
         let sequence = [];
         let currentIndex = 0;
         let stepEndTime = 0;
+        
         let sessionEndTime = 0;
         let useSessionEnd = false;
+        let targetCycles = 0;
+        let cyclesCompleted = 0;
+        let useCycleLimit = false;
+        
         let wakeLock = null;
         let isBlueBackground = true;
 
@@ -187,7 +220,6 @@
         const presetBtns = document.querySelectorAll('.preset-btn');
         const circumference = 2 * Math.PI * 115;
 
-        // Preset Button Logic
         presetBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 sequenceInput.value = btn.getAttribute('data-seq');
@@ -251,6 +283,7 @@
             if (useSessionEnd && now >= sessionEndTime) {
                 stopTimer();
                 display.innerText = "Done";
+                ring.style.strokeDashoffset = 0;
                 return;
             }
 
@@ -259,7 +292,19 @@
 
             if (timeLeft <= 0) {
                 currentIndex = (currentIndex + 1) % sequence.length;
-                playClick(currentIndex === 0);
+                const isCycleRestart = (currentIndex === 0);
+                
+                if (isCycleRestart) {
+                    cyclesCompleted++;
+                    if (useCycleLimit && cyclesCompleted >= targetCycles) {
+                        stopTimer();
+                        display.innerText = "Done";
+                        ring.style.strokeDashoffset = 0;
+                        return;
+                    }
+                }
+
+                playClick(isCycleRestart);
                 isBlueBackground = !isBlueBackground;
                 document.body.style.backgroundColor = isBlueBackground ? COLOR_BLUE : COLOR_GREEN;
                 stepEndTime += (sequence[currentIndex] * 1000);
@@ -296,17 +341,29 @@
             sequence = seqInput.split('-').map(num => parseInt(num.trim())).filter(num => !isNaN(num) && num > 0);
             if (sequence.length === 0) return;
 
-            const totalMinutes = document.getElementById('totalTime').value;
-            if (totalMinutes && totalMinutes > 0) {
-                sessionEndTime = Date.now() + (totalMinutes * 60000);
-                useSessionEnd = true;
-            } else {
-                useSessionEnd = false;
+            const limitVal = parseInt(document.getElementById('limitInput').value);
+            const limitType = document.getElementById('limitType').value;
+            
+            useSessionEnd = false;
+            useCycleLimit = false;
+            cyclesCompleted = 0;
+
+            if (!isNaN(limitVal) && limitVal > 0) {
+                if (limitType === 'minutes') {
+                    sessionEndTime = Date.now() + (limitVal * 60000);
+                    useSessionEnd = true;
+                } else {
+                    targetCycles = limitVal;
+                    useCycleLimit = true;
+                }
             }
 
             currentIndex = 0;
             stepEndTime = Date.now() + (sequence[0] * 1000);
             isRunning = true;
+            isBlueBackground = true;
+            document.body.style.backgroundColor = COLOR_BLUE;
+            
             controls.style.display = 'none';
             timerVisual.style.display = 'block';
             stopBtn.style.display = 'block';
