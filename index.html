@@ -197,7 +197,7 @@
     </div>
     <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.15); color: #FFF; width: 100%; max-width: 350px; margin-top: 40px; box-shadow: none;">Stop</button>
 
-    <div class="version-tag">v4.4</div>
+    <div class="version-tag">v4.5</div>
 
     <script>
         window.onerror = function(msg) {
@@ -205,7 +205,6 @@
             if(seq) seq.value = "ERR: " + msg;
         };
 
-        // Advanced wave generator
         function buildWavDataURI(freq, duration = 0.085, vol = 0.87, decay = 92.1, attack = 0.01) {
             const sampleRate = 44100;
             const samples = Math.floor(sampleRate * duration);
@@ -320,12 +319,13 @@
         }
 
         function updateDisplay(val) {
-            if (val == lastDisplayVal) return;
+            const strVal = String(val);
+            if (strVal === String(lastDisplayVal)) return;
             display.classList.add('fade-out');
             setTimeout(() => {
-                display.innerText = val;
+                display.innerText = strVal;
                 display.classList.remove('fade-out');
-                lastDisplayVal = val;
+                lastDisplayVal = strVal;
             }, 150);
         }
 
@@ -391,12 +391,18 @@
             controls.style.display = 'flex';
             document.body.style.backgroundColor = COLOR_BLUE;
             stopBtn.innerText = "Stop"; 
+            lastDisplayVal = ""; 
         }
 
         startBtn.addEventListener('click', () => {
             if (!audioUnlocked) {
                 [audioStep, audioRestart, audioDone].forEach(a => {
-                    a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(()=>{});
+                    a.muted = true;
+                    a.play().then(() => { 
+                        a.pause(); 
+                        a.currentTime = 0; 
+                        a.muted = false; 
+                    }).catch(()=>{});
                 });
                 audioUnlocked = true;
             }
@@ -425,6 +431,10 @@
             isBlueBackground = true;
             document.body.style.backgroundColor = COLOR_BLUE;
             stopBtn.innerText = "Stop"; 
+            
+            lastDisplayVal = ""; 
+            display.innerText = isHeadstartOn ? "3" : String(sequence[0]);
+            ring.style.strokeDashoffset = 0; 
 
             setTimeout(async () => {
                 if (isHeadstartOn) {
