@@ -194,122 +194,72 @@
     <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.15); color: #FFF; width: 100%; max-width: 350px; margin-top: 40px; box-shadow: none;">Stop</button>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            
-            const Memory = {
-                save: function(k, v) { try { window.localStorage.setItem(k, v); } catch(e) {} },
-                load: function(k) { try { return window.localStorage.getItem(k); } catch(e) { return null; } }
+        // Phase-aligned wave generator to prevent digital clicking
+        function buildWavDataURI(freq, duration = 0.085, vol = 0.87, decay = 92.1) {
+            const sampleRate = 44100;
+            const samples = Math.floor(sampleRate * duration);
+            const buffer = new ArrayBuffer(44 + samples * 2);
+            const view = new DataView(buffer);
+
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
             };
 
-            function buildWavDataURI(freq, duration = 0.085, vol = 0.87, decay = 92.1) {
-                const sampleRate = 44100;
-                const samples = Math.floor(sampleRate * duration);
-                const buffer = new ArrayBuffer(44 + samples * 2);
-                const view = new DataView(buffer);
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + samples * 2, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, samples * 2, true);
 
-                const writeString = (offset, string) => {
-                    for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
-                };
-
-                writeString(0, 'RIFF');
-                view.setUint32(4, 36 + samples * 2, true);
-                writeString(8, 'WAVE');
-                writeString(12, 'fmt ');
-                view.setUint32(16, 16, true);
-                view.setUint16(20, 1, true);
-                view.setUint16(22, 1, true);
-                view.setUint32(24, sampleRate, true);
-                view.setUint32(28, sampleRate * 2, true);
-                view.setUint16(32, 2, true);
-                view.setUint16(34, 16, true);
-                writeString(36, 'data');
-                view.setUint32(40, samples * 2, true);
-
-                let offset = 44;
-                for (let i = 0; i < samples; i++) {
-                    const t = i / sampleRate;
-                    let env = 0;
-                    let timeInWave = 0;
-                    
-                    if (t < 0.015) {
-                        env = 0; 
-                        timeInWave = 0;
-                    } else if (t <= 0.025) {
-                        env = (t - 0.015) / 0.01; 
-                        timeInWave = t - 0.015; 
-                    } else if (t <= duration - 0.01) {
-                        env = Math.exp(-decay * (t - 0.025)); 
-                        timeInWave = t - 0.015;
-                    } else {
-                        env = 0;
-                        timeInWave = 0;
-                    }
-
-                    const sine = freq === 0 ? 0 : Math.sin(2 * Math.PI * freq * timeInWave);
-                    const sample = Math.max(-1, Math.min(1, sine)) * 32767 * env * vol; 
-                    view.setInt16(offset, sample, true);
-                    offset += 2;
+            let offset = 44;
+            for (let i = 0; i < samples; i++) {
+                const t = i / sampleRate;
+                let env = 0;
+                let timeInWave = 0;
+                
+                if (t < 0.015) {
+                    env = 0; 
+                    timeInWave = 0;
+                } else if (t <= 0.025) {
+                    env = (t - 0.015) / 0.01; 
+                    timeInWave = t - 0.015; 
+                } else if (t <= duration - 0.01) {
+                    env = Math.exp(-decay * (t - 0.025)); 
+                    timeInWave = t - 0.015;
+                } else {
+                    env = 0;
+                    timeInWave = 0;
                 }
 
-                let binary = '';
-                const bytes = new Uint8Array(buffer);
-                for (let i = 0; i < bytes.byteLength; i++) {
-                    binary += String.fromCharCode(bytes[i]);
-                }
-                return 'data:audio/wav;base64,' + btoa(binary);
+                const sine = freq === 0 ? 0 : Math.sin(2 * Math.PI * freq * timeInWave);
+                const sample = Math.max(-1, Math.min(1, sine)) * 32767 * env * vol; 
+                view.setInt16(offset, sample, true);
+                offset += 2;
             }
 
-            const audioSilentURI = buildWavDataURI(0, 0.1, 0, 10); 
-            const audioStepURI = buildWavDataURI(396, 0.085, 0.87, 92.1);    
-            const audioRestartURI = buildWavDataURI(432, 0.085, 0.87, 92.1); 
-            const audioDoneURI = buildWavDataURI(285, 0.085, 0.87, 92.1);    
-            const audioHeadstartURI = buildWavDataURI(396, 0.30, 0.30, 15); 
-
-            function playBeep(type) {
-                let uri = audioStepURI;
-                if (type === 'restart') uri = audioRestartURI;
-                if (type === 'done') uri = audioDoneURI;
-                if (type === 'headstart') uri = audioHeadstartURI;
-                const snd = new Audio(uri);
-                snd.play().catch(() => {});
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
             }
+            return 'data:audio/wav;base64,' + btoa(binary);
+        }
 
-            const COLOR_BLUE = '#81D4FA';
-            const COLOR_GREEN = '#A8E6CF';
+        const audioSilentURI = buildWavDataURI(0, 0.1, 0, 10); 
+        const audioStepURI = buildWavDataURI(396, 0.085, 0.87, 92.1);    
+        const audioRestartURI = buildWavDataURI(432, 0.085, 0.87, 92.1); 
+        const audioDoneURI = buildWavDataURI(285, 0.085, 0.87, 92.1);    
+        const audioHeadstartURI = buildWavDataURI(396, 0.30, 0.30, 15); 
 
-            let isRunning = false;
-            let engineInterval;
-            let sequence = [];
-            let currentIndex = 0;
-            let stepEndTime = 0;
-            
-            let sessionEndTime = 0;
-            let useSessionEnd = false;
-            let targetCycles = 0;
-            let cyclesCompleted = 0;
-            let useCycleLimit = false;
-            
-            let wakeLock = null;
-            let isBlueBackground = true;
-            let lastDisplayVal = "";
-
-            const ring = document.getElementById('ring');
-            const display = document.getElementById('display');
-            const startBtn = document.getElementById('startBtn');
-            const stopBtn = document.getElementById('stopBtn');
-            const controls = document.getElementById('controls');
-            const timerVisual = document.getElementById('timerVisual');
-            const sequenceInput = document.getElementById('sequence');
-            const limitInput = document.getElementById('limitInput');
-            
-            let isHeadstartOn = true;
-            let isMinutesLimit = true;
-            
-            const headToggle = document.getElementById('headstartToggle');
-            const limitToggle = document.getElementById('limitToggle');
-            const circumference = 2 * Math.PI * 115;
-
-            const savedSeq = Memory.load('zmanSequence');
-            if (savedSeq) sequenceInput.value = savedSeq;
-
-            const savedLimit = Memory.load('z
+        function playBeep(type) {
+            let uri = audioStepURI;
+            if (type === 'restart') uri = audioRestartURI;
+            if (
