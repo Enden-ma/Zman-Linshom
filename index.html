@@ -6,8 +6,8 @@
     <title>Zman Linshom</title>
     
     <meta name="description" content="A timer for breathing.">
-    <meta property="og:title" content="Zman Linshoml">
-    <meta property="og:description" content="Breathing cycle timer.">
+    <meta property="og:title" content="Zman Linshom">
+    <meta property="og:description" content="Organic cycle timer.">
     <meta property="og:image" content="icon.png">
     
     <link rel="manifest" href="manifest.json">
@@ -192,10 +192,10 @@
     <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.2); color: #F5F5F5; width: 100%; max-width: 350px; margin-top: 40px; box-shadow: none;">Stop Timer</button>
 
     <script>
-        // Systemic iOS Audio Fix: Perfect cloning of the original 60ms ASMR envelope
+        // Systemic Audio Engine: 60ms pure sine envelope, max amplitude 0.87
         function buildWavDataURI(freq) {
             const sampleRate = 44100;
-            const duration = 0.06; // Exactly 60ms
+            const duration = 0.06; 
             const samples = Math.floor(sampleRate * duration);
             const buffer = new ArrayBuffer(44 + samples * 2);
             const view = new DataView(buffer);
@@ -223,20 +223,16 @@
                 const t = i / sampleRate;
                 let env = 0;
                 
-                // The precise 3-stage envelope that makes it a clean "ping"
                 if (t <= 0.005) {
-                    // 5ms Linear Attack
-                    env = (t / 0.005) * 0.5; 
+                    env = (t / 0.005); 
                 } else if (t <= 0.05) {
-                    // 45ms Exponential Decay
-                    env = 0.5 * Math.pow((0.001 / 0.5), (t - 0.005) / 0.045);
+                    env = Math.exp(-92.1 * (t - 0.005)); 
                 } else {
-                    // Total silence for final 10ms
                     env = 0;
                 }
 
                 const sine = Math.sin(2 * Math.PI * freq * t);
-                const sample = Math.max(-1, Math.min(1, sine)) * 32767 * env; 
+                const sample = Math.max(-1, Math.min(1, sine)) * 32767 * env * 0.87; 
                 view.setInt16(offset, sample, true);
                 offset += 2;
             }
@@ -249,10 +245,10 @@
             return 'data:audio/wav;base64,' + btoa(binary);
         }
 
-        // Generate the pure tone files with your grounding frequencies
-        const audioStepURI = buildWavDataURI(396);     // Other steps
-        const audioRestartURI = buildWavDataURI(432);  // First beep
-        const audioDoneURI = buildWavDataURI(285);     // Finish beep
+        // Frequencies set to exact specifications
+        const audioStepURI = buildWavDataURI(396);     // Subsequent steps
+        const audioRestartURI = buildWavDataURI(432);  // First beep of cycle
+        const audioDoneURI = buildWavDataURI(285);     // Finish chime
 
         function playBeep(type) {
             let uri = audioStepURI;
@@ -313,8 +309,8 @@
 
         function playCompletionChime() {
             playBeep('done');
-            setTimeout(() => playBeep('done'), 333);
-            setTimeout(() => playBeep('done'), 666);
+            setTimeout(() => playBeep('done'), 333.3);
+            setTimeout(() => playBeep('done'), 666.6);
         }
 
         function runEngine() {
@@ -379,7 +375,6 @@
         }
 
         startBtn.addEventListener('click', () => {
-            // Unlock audio engine silently for iOS on first tap
             new Audio(audioStepURI).play().catch(()=>{});
 
             requestWakeLock();
