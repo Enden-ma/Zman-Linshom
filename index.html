@@ -152,6 +152,15 @@
             transition: opacity 0.2s ease, transform 0.2s ease;
         }
         .fade-out { opacity: 0; transform: translate(-50%, -45%) scale(0.9); }
+        
+        .version-tag {
+            position: fixed;
+            bottom: 5px;
+            right: 8px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.4);
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -193,8 +202,16 @@
     </div>
     <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.15); color: #FFF; width: 100%; max-width: 350px; margin-top: 40px; box-shadow: none;">Stop</button>
 
+    <div class="version-tag">v4.2</div>
+
     <script>
-        // Phase-aligned wave generator to prevent digital clicking
+        // Diagnostic net: if the script crashes, it prints the error in the sequence box
+        window.onerror = function(msg) {
+            const seq = document.getElementById('sequence');
+            if(seq) seq.value = "ERR: " + msg;
+        };
+
+        // Ultra-fast wave generator (chunked to prevent browser freezes)
         function buildWavDataURI(freq, duration = 0.085, vol = 0.87, decay = 92.1) {
             const sampleRate = 44100;
             const samples = Math.floor(sampleRate * duration);
@@ -225,6 +242,7 @@
                 let env = 0;
                 let timeInWave = 0;
                 
+                // 15ms zero-phase silence padding to eliminate the hardware "crunch"
                 if (t < 0.015) {
                     env = 0; 
                     timeInWave = 0;
@@ -239,7 +257,7 @@
                     timeInWave = 0;
                 }
 
-                const sine = freq === 0 ? 0 : Math.sin(2 * Math.PI * freq * timeInWave);
+                const sine = Math.sin(2 * Math.PI * freq * timeInWave);
                 const sample = Math.max(-1, Math.min(1, sine)) * 32767 * env * vol; 
                 view.setInt16(offset, sample, true);
                 offset += 2;
@@ -247,19 +265,231 @@
 
             let binary = '';
             const bytes = new Uint8Array(buffer);
-            for (let i = 0; i < bytes.byteLength; i++) {
-                binary += String.fromCharCode(bytes[i]);
+            const chunkSize = 8192; // Process in massive chunks, drastically reducing CPU load
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
             }
             return 'data:audio/wav;base64,' + btoa(binary);
         }
 
-        const audioSilentURI = buildWavDataURI(0, 0.1, 0, 10); 
-        const audioStepURI = buildWavDataURI(396, 0.085, 0.87, 92.1);    
-        const audioRestartURI = buildWavDataURI(432, 0.085, 0.87, 92.1); 
-        const audioDoneURI = buildWavDataURI(285, 0.085, 0.87, 92.1);    
-        const audioHeadstartURI = buildWavDataURI(396, 0.30, 0.30, 15); 
+        // Pre-instantiated Audio to bypass iOS strict autoplay rules
+        const audioStep = new Audio(buildWavDataURI(396, 0.085, 0.87, 92.1));    
+        const audioRestart = new Audio(buildWavDataURI(432, 0.085, 0.87, 92.1)); 
+        const audioDone = new Audio(buildWavDataURI(285, 0.085, 0.87, 92.1));    
+        const audioHeadstart = new Audio(buildWavDataURI(396, 0.30, 0.30, 15)); 
 
         function playBeep(type) {
-            let uri = audioStepURI;
-            if (type === 'restart') uri = audioRestartURI;
-            if (
+            let snd = audioStep;
+            if (type === 'restart') snd = audioRestart;
+            if (type === 'done') snd = audioDone;
+            if (type === 'headstart') snd = audioHeadstart;
+            
+            snd.currentTime = 0;
+            snd.play().catch(() => {});
+        }
+
+        const COLOR_BLUE = '#81D4FA';
+        const COLOR_GREEN = '#A8E6CF';
+
+        let isRunning = false;
+        let engineInterval;
+        let sequence = [];
+        let currentIndex = 0;
+        let stepEndTime = 0;
+        
+        let sessionEndTime = 0;
+        let useSessionEnd = false;
+        let targetCycles = 0;
+        let cyclesCompleted = 0;
+        let useCycleLimit = false;
+        
+        let wakeLock = null;
+        let isBlueBackground = true;
+        let lastDisplayVal = "";
+        let audioUnlocked = false;
+
+        const ring = document.getElementById('ring');
+        const display = document.getElementById('display');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const controls = document.getElementById('controls');
+        const timerVisual = document.getElementById('timerVisual');
+        const sequenceInput = document.getElementById('sequence');
+        const limitInput = document.getElementById('limitInput');
+        
+        let isHeadstartOn = true;
+        let isMinutesLimit = true;
+        
+        const headToggle = document.getElementById('headstartToggle');
+        const limitToggle = document.getElementById('limitToggle');
+        const circumference = 2 * Math.PI * 115;
+
+        headToggle.addEventListener('click', () => {
+            isHeadstartOn = !isHeadstartOn;
+            headToggle.classList.toggle('active', isHeadstartOn);
+        });
+
+        limitToggle.addEventListener('click', () => {
+            isMinutesLimit = !isMinutesLimit;
+            limitToggle.innerText = isMinutesLimit ? 'minutes' : 'cycles';
+        });
+
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                sequenceInput.value = btn.getAttribute('data-seq');
+            });
+        });
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {}
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+        }
+
+        function updateDisplay(val) {
+            if (val == lastDisplayVal) return;
+            display.classList.add('fade-out');
+            setTimeout(() => {
+                display.innerText = val;
+                display.classList.remove('fade-out');
+                lastDisplayVal = val;
+            }, 150);
+        }
+
+        function playCompletionChime() {
+            playBeep('done');
+            setTimeout(() => playBeep('done'), 333);
+            setTimeout(() => playBeep('done'), 666);
+        }
+
+        function runEngine() {
+            if (!isRunning) return;
+            const now = Date.now();
+
+            if (useSessionEnd && now >= sessionEndTime) {
+                playCompletionChime();
+                isRunning = false;
+                clearInterval(engineInterval);
+                updateDisplay("Done");
+                ring.style.strokeDashoffset = 0;
+                stopBtn.innerText = "Finish";
+                return;
+            }
+
+            let timeLeft = stepEndTime - now;
+            const currentStepDuration = sequence[currentIndex] * 1000;
+
+            if (timeLeft <= 0) {
+                currentIndex = (currentIndex + 1) % sequence.length;
+                const isCycleRestart = (currentIndex === 0);
+                
+                if (isCycleRestart) {
+                    cyclesCompleted++;
+                    if (useCycleLimit && cyclesCompleted >= targetCycles) {
+                        playCompletionChime();
+                        isRunning = false;
+                        clearInterval(engineInterval);
+                        updateDisplay("Done");
+                        ring.style.strokeDashoffset = 0;
+                        stopBtn.innerText = "Finish";
+                        return;
+                    }
+                }
+
+                playBeep(isCycleRestart ? 'restart' : 'step');
+                isBlueBackground = !isBlueBackground;
+                document.body.style.backgroundColor = isBlueBackground ? COLOR_BLUE : COLOR_GREEN;
+                stepEndTime += (sequence[currentIndex] * 1000);
+                timeLeft = stepEndTime - now;
+            }
+
+            let currentBeat = Math.ceil(timeLeft / 1000);
+            if (currentBeat < 1) currentBeat = 1;
+            updateDisplay(currentBeat);
+            
+            const safeTimeLeft = Math.max(0, timeLeft);
+            const percentage = safeTimeLeft / currentStepDuration;
+            ring.style.strokeDashoffset = circumference - (percentage * circumference);
+        }
+
+        function stopTimer() {
+            isRunning = false; 
+            clearInterval(engineInterval);
+            releaseWakeLock();
+            timerVisual.style.display = 'none';
+            stopBtn.style.display = 'none';
+            controls.style.display = 'flex';
+            document.body.style.backgroundColor = COLOR_BLUE;
+            stopBtn.innerText = "Stop"; 
+        }
+
+        startBtn.addEventListener('click', () => {
+            // Invisible security blanket: silently primes iOS audio engines
+            if (!audioUnlocked) {
+                [audioStep, audioRestart, audioDone, audioHeadstart].forEach(a => {
+                    a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(()=>{});
+                });
+                audioUnlocked = true;
+            }
+
+            requestWakeLock();
+            const seqInput = sequenceInput.value;
+            sequence = seqInput.split('-').map(num => parseInt(num.trim())).filter(num => !isNaN(num) && num > 0);
+            if (sequence.length === 0) return;
+
+            const limitVal = parseInt(limitInput.value);
+            
+            useSessionEnd = false;
+            useCycleLimit = false;
+            cyclesCompleted = 0;
+
+            if (!isNaN(limitVal) && limitVal > 0) {
+                if (isMinutesLimit) {
+                    sessionEndTime = Date.now() + (limitVal * 60000);
+                    useSessionEnd = true;
+                } else {
+                    targetCycles = limitVal;
+                    useCycleLimit = true;
+                }
+            }
+
+            controls.style.display = 'none';
+            timerVisual.style.display = 'block';
+            stopBtn.style.display = 'block';
+            isRunning = true;
+            isBlueBackground = true;
+            document.body.style.backgroundColor = COLOR_BLUE;
+            stopBtn.innerText = "Stop"; 
+
+            // 70ms hardware wake delay
+            setTimeout(async () => {
+                if (isHeadstartOn) {
+                    for (let i = 3; i > 0; i--) {
+                        if (!isRunning) return; 
+                        updateDisplay(i); 
+                        playBeep('headstart');
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                    if (!isRunning) return; 
+                }
+                
+                playBeep('restart');
+                currentIndex = 0;
+                stepEndTime = Date.now() + (sequence[0] * 1000);
+                engineInterval = setInterval(runEngine, 20);
+            }, 70);
+        });
+
+        stopBtn.addEventListener('click', stopTimer);
+    </script>
+</body>
+</html>
