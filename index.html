@@ -83,11 +83,16 @@
             border-radius: 8px;
             cursor: pointer;
             user-select: none;
-            transition: background 0.2s;
+            transition: background 0.3s ease, opacity 0.2s ease, transform 0.2s ease;
             -webkit-tap-highlight-color: transparent;
+            display: inline-block;
         }
         .toggle-label.active {
             background: rgba(255, 255, 255, 0.35);
+        }
+        .toggle-label.fade-out-toggle {
+            opacity: 0;
+            transform: scale(0.95);
         }
 
         input {
@@ -197,7 +202,7 @@
     </div>
     <button id="stopBtn" class="main-btn" style="display: none; background-color: rgba(255,255,255,0.15); color: #FFF; width: 100%; max-width: 350px; margin-top: 40px; box-shadow: none;">Stop</button>
 
-    <div class="version-tag">v4.6</div>
+    <div class="version-tag">v4.7</div>
 
     <script>
         window.onerror = function(msg) {
@@ -295,8 +300,12 @@
         });
 
         limitToggle.addEventListener('click', () => {
-            isMinutesLimit = !isMinutesLimit;
-            limitToggle.innerText = isMinutesLimit ? 'minutes' : 'cycles';
+            limitToggle.classList.add('fade-out-toggle');
+            setTimeout(() => {
+                isMinutesLimit = !isMinutesLimit;
+                limitToggle.innerText = isMinutesLimit ? 'minutes' : 'cycles';
+                limitToggle.classList.remove('fade-out-toggle');
+            }, 150);
         });
 
         document.querySelectorAll('.preset-btn').forEach(btn => {
